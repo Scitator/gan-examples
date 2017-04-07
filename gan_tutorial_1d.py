@@ -62,34 +62,33 @@ def linear(input_vec, out_size, scope=None, stddev=1.0):
 
 
 def generator(input_vec, hidden_size):
-    h0 = tf.nn.softplus(linear(input_vec, hidden_size, 'g0'))
+    h0 = tf.nn.elu(linear(input_vec, hidden_size, 'g0'))
     h1 = linear(h0, 1, 'g1')
     return h1
 
 
 def discriminator(input_vec, hidden_size, minibatch_layer=True):
-    h0 = tf.tanh(linear(input_vec, hidden_size, 'd0'))
-    h1 = tf.tanh(linear(h0, hidden_size, 'd1'))
+    h0 = tf.nn.elu(linear(input_vec, hidden_size, 'd0'))
+    h1 = tf.nn.elu(linear(h0, hidden_size, 'd1'))
 
     # without the minibatch layer, the discriminator needs an additional layer
     # to have enough capacity to separate the two distributions correctly
     if minibatch_layer:
         h2 = minibatch(h1)
     else:
-        h2 = tf.tanh(linear(h1, hidden_size, scope='d2'))
+        h2 = tf.nn.elu(linear(h1, hidden_size, scope='d2'))
 
     h3 = tf.sigmoid(linear(h2, 1, scope='d3'))
     return h3
 
 
-def minibatch(input, num_kernels=5, kernel_dim=3):
-    x = linear(input, num_kernels * kernel_dim, scope='minibatch', stddev=0.02)
+def minibatch(input_vec, num_kernels=5, kernel_dim=3):
+    x = linear(input_vec, num_kernels * kernel_dim, scope='minibatch', stddev=0.02)
     activation = tf.reshape(x, (-1, num_kernels, kernel_dim))
     diffs = tf.expand_dims(activation, 3) - tf.expand_dims(tf.transpose(activation, [1, 2, 0]), 0)
-    eps = tf.expand_dims(np.eye(int(input.get_shape()[0]), dtype=np.float32), 1)
-    abs_diffs = tf.reduce_sum(tf.abs(diffs), 2) + eps
+    abs_diffs = tf.reduce_sum(tf.abs(diffs), 2)
     minibatch_features = tf.reduce_sum(tf.exp(-abs_diffs), 2)
-    return tf.concat(1, [input, minibatch_features])
+    return tf.concat([input_vec, minibatch_features], 1)
 
 
 def update(loss, var_list,
